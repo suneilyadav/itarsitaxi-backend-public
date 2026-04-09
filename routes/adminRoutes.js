@@ -35,6 +35,14 @@ router.post('/login', (req, res) => {
   res.status(401).json({ success: false, message: 'Invalid credentials' });
 });
 
+router.get('/debug-env', (req, res) => {
+  res.json({
+    adminUsername: process.env.ADMIN_USERNAME || null,
+    hasAdminPassword: Boolean(process.env.ADMIN_PASSWORD),
+    hasJwtSecret: Boolean(process.env.JWT_SECRET),
+  });
+});
+
 router.get('/bookings', verifyToken, async (req, res) => {
   try {
     const bookings = await Booking.find().sort({ createdAt: -1 });
