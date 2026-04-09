@@ -1,10 +1,37 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { storage } = require('../config/cloudinary');
-const upload = multer({ storage });
+const { cloudinary } = require('../config/cloudinary');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
 
 const Blog = require('../models/Blog');
+
+const uploadToCloudinary = (fileBuffer, originalName) =>
+  new Promise((resolve, reject) => {
+    const publicId = `${originalName.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '-')}-${Date.now()}`;
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'itarsitaxi-blogs',
+        public_id: publicId,
+        resource_type: 'image',
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+
+    stream.end(fileBuffer);
+  });
 
 // ✅ GET all blogs with pagination
 router.get('/', async (req, res) => {
@@ -44,19 +71,22 @@ router.get('/:id', async (req, res) => {
 router.post('/add', upload.single('image'), async (req, res) => {
   try {
     const { title, excerpt, content } = req.body;
-    const image = req.file?.path || '';
+    const file = req.file;
 
-    if (!title || !excerpt || !content || !image) {
+    if (!title || !excerpt || !content || !file) {
       return res.status(400).json({ error: 'All fields including image are required' });
     }
 
-    const blog = new Blog({ title, excerpt, content, image }); // ✅ Match schema
+    const uploadResult = await uploadToCloudinary(file.buffer, file.originalname || 'blog-image');
+    const image = uploadResult.secure_url || '';
+
+    const blog = new Blog({ title, excerpt, content, image });
     await blog.save();
 
     res.status(201).json({ message: 'Blog created successfully', blog });
   } catch (err) {
     console.error('❌ Blog creation error:', err.message);
-    res.status(500).json({ error: 'Failed to create blog. Check image format or server logs.' });
+    res.status(500).json({ error: err.message || 'Failed to create blog. Check image format or server logs.' });
   }
 });
 
@@ -75,4 +105,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
-
