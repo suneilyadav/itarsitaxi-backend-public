@@ -1,3 +1,4 @@
+// models/Booking.js
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
@@ -20,31 +21,18 @@ const bookingSchema = new mongoose.Schema({
   pickupTime: { type: String, default: '' },
   tripType: { type: String, default: '' },
 
-  paymentMode: { type: String, default: '' },
+  paymentMode: { type: String },
   paymentStatus: {
     type: String,
-    enum: [
-      'Pending',
-      'Success',
-      'Failed',
-      'Paid',
-      'initiated',
-      'pending_verification',
-      'pending_cash',
-      'cancelled'
-    ],
+    enum: ['Pending', 'Success', 'Failed', 'Paid'], // ✅ Added 'Paid'
     default: 'Pending',
   },
   transactionId: { type: String, default: '' },
   merchantOrderId: { type: String, default: '' },
-  utr: { type: String, default: '' },
-  paymentNotes: { type: String, default: '' },
-  verifiedAt: { type: Date, default: null },
-  verifiedBy: { type: String, default: '' },
 
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'completed'],
+    enum: ['pending', 'confirmed', 'cancelled'],
     default: 'pending',
   },
 
@@ -52,3 +40,4 @@ const bookingSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
+

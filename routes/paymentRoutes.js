@@ -1,99 +1,62 @@
-// routes/paymentRoutes.js (Razorpay version)
 const express = require('express');
 const router = express.Router();
-const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
-const razorpay = require('../utils/razorpay');
 const Booking = require('../models/Booking');
-const sendSMS = require('../utils/sendSMS');
 require('dotenv').config();
 
-// ✅ CREATE RAZORPAY ORDER
-router.post('/razorpay/create-order', async (req, res) => {
-  const { amount, bookingData } = req.body;
-
-  if (!amount || !bookingData) {
-    return res.status(400).json({ success: false, message: 'Invalid request' });
-  }
-
-const receiptId = `rzp_${Math.random().toString(36).substring(2, 12)}`;
-
-  const options = {
-    amount: amount * 100, // amount in paise
-    currency: 'INR',
-    receipt: receiptId,
-  };
-
+router.post('/upi/initiate', async (req, res) => {
   try {
-    const order = await razorpay.orders.create(options);
-    console.log('✅ Razorpay order created:', order.id);
+    const { amount, bookingData } = req.body;
 
-    res.json({ success: true, order, bookingData });
+    if (!amount || !bookingData) {
+      return res.status(400).json({ success: false, message: 'Amount and bookingData are required.' });
+    }
+
+    const newBooking = new Booking({
+      ...bookingData,
+      advanceAmount: amount,
+      paymentMode: 'UPI',
+      paymentStatus: 'initiated',
+      merchantOrderId: `UPI-${Date.now()}`,
+      status: 'pending',
+    });
+
+    const savedBooking = await newBooking.save();
+
+    return res.status(201).json({
+      success: true,
+      bookingId: savedBooking._id,
+      amount: savedBooking.advanceAmount,
+    });
   } catch (err) {
-    console.error('❌ Razorpay Order Error:', err);
-    res.status(500).json({ success: false, message: 'Failed to create Razorpay order' });
+    console.error('UPI initiate error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to start UPI booking.' });
   }
 });
 
-// ✅ VERIFY PAYMENT & SAVE BOOKING
-router.post('/razorpay/verify', async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingData } = req.body;
-
-  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !bookingData) {
-    return res.status(400).json({ success: false, message: 'Incomplete payment verification data' });
-  }
-
-  const expectedSignature = crypto
-    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-    .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-    .digest('hex');
-
-  if (expectedSignature !== razorpay_signature) {
-    console.warn('⚠️ Invalid signature, possible tampering');
-    return res.status(400).json({ success: false, message: 'Invalid payment signature' });
-  }
-
+router.post('/upi/submit-proof', async (req, res) => {
   try {
-    const newBooking = new Booking({
-      ...bookingData,
-      paymentStatus: 'Paid',
-      transactionId: razorpay_payment_id,
-      merchantOrderId: razorpay_order_id,
-      advanceAmount: bookingData.advanceAmount || 0,
-    });
+    const { bookingId, utr } = req.body;
 
-    await newBooking.save();
+    if (!bookingId || !utr) {
+      return res.status(400).json({ success: false, message: 'bookingId and utr are required.' });
+    }
 
-const safe = (v, fallback = "Not Provided") => (v || "").toString().trim() || fallback;
-const sanitizeSMS = (text) => {
-  return (text || "")
-    .replace(/[–—]/g, "-")
-    .replace(/[₹•“”‘’]/g, "")
-    .replace(/[^\x00-\x7F]/g, "")
-    .trim();
-};
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found.' });
+    }
 
-const nameText = sanitizeSMS(safe(newBooking.name));
-const fareText = sanitizeSMS(safe(newBooking.totalFare));
-const pickupText = sanitizeSMS(`${safe(newBooking.pickupDate)} ${safe(newBooking.pickupTime)}`);
-const mobileText = sanitizeSMS(safe(newBooking.mobile));
+    booking.utr = utr.trim();
+    booking.transactionId = utr.trim();
+    booking.paymentStatus = 'pending_verification';
 
-const customerMessage = `Booking confirmed with ItarsiTaxi on pickup date ${pickupText}. Fare: Rs${fareText}. Thank you!`;
-const adminMessage = `Booking received: ${nameText} (${mobileText}),pickup date ${pickupText}`;
+    await booking.save();
 
-const adminPhone = process.env.ADMIN_PHONE || "91XXXXXXXXXX";
-
-await sendSMS(mobileText, customerMessage);
-await sendSMS(adminPhone, adminMessage);
-
-    console.log('✅ Booking saved and SMS sent:', newBooking._id);
-
-    return res.json({ success: true });
+    return res.json({ success: true, message: 'Payment proof submitted.' });
   } catch (err) {
-    console.error('❌ Error saving booking or sending SMS:', err);
-    return res.status(500).json({ success: false, message: 'Booking failed. Please contact support.' });
+    console.error('UPI proof error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to submit UPI proof.' });
   }
 });
 
 module.exports = router;
-

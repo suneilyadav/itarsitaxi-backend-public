@@ -3,19 +3,8 @@ const express = require("express");
 const router = express.Router();
 const getDistance = require("../utils/getDistance");
 const Booking = require("../models/Booking");
-const sendSMS = require("../utils/sendSMS");
 
 const ITARSI_LOCATION = "Itarsi, Madhya Pradesh";
-
-const safe = (v, fallback = "Not Provided") => (v || "").toString().trim() || fallback;
-
-const sanitizeSMS = (text) => {
-  return (text || "")
-    .replace(/[–—]/g, "-")
-    .replace(/[₹•“”‘’]/g, "")
-    .replace(/[^\x00-\x7F]/g, "")
-    .trim();
-};
 
 router.get("/distance", async (req, res) => {
   const { origin, destination } = req.query;
@@ -53,6 +42,8 @@ router.post("/", async (req, res) => {
       duration = "",
     } = req.body;
 
+    const requestedDistance = Number(distance) || 0;
+
     // Mandatory field check
 const missingFields = [];
 if (!name) missingFields.push("name");
@@ -77,32 +68,48 @@ if (!dropLocation) missingFields.push("dropLocation");
       return res.status(400).json({ success: false, message: "Invalid route for prepaid bookings" });
     }
 
-    const { distanceInKm: pickupDistanceFromItarsi } = await getDistance(ITARSI_LOCATION, pickupLocation);
-    const { distanceInKm: dropDistanceFromItarsi } = await getDistance(ITARSI_LOCATION, dropLocation);
-
-    if (tripType === "Local") {
-      if (pickupDistanceFromItarsi > 15 || dropDistanceFromItarsi > 15) {
-        return res.status(400).json({
-          success: false,
-          message: "For Local trips, both pickup and drop must be within 15 KM of Itarsi.",
-        });
-      }
-    }
-
-    if (["One Way", "Round Trip"].includes(tripType)) {
-      if (dropDistanceFromItarsi < 15) {
-        return res.status(400).json({
-          success: false,
-          message: "Drop location must be at least 15 KM from Itarsi for this trip type.",
-        });
-      }
-    }
-
     if (tripType === "Airport" && !dropLocation.toLowerCase().includes("airport")) {
       return res.status(400).json({
         success: false,
         message: "Drop location must be a valid airport for Airport trip type.",
       });
+    }
+
+    try {
+      const { distanceInKm: pickupDistanceFromItarsi } = await getDistance(ITARSI_LOCATION, pickupLocation);
+      const { distanceInKm: dropDistanceFromItarsi } = await getDistance(ITARSI_LOCATION, dropLocation);
+
+      if (tripType === "Local") {
+        if (pickupDistanceFromItarsi > 15 || dropDistanceFromItarsi > 15) {
+          return res.status(400).json({
+            success: false,
+            message: "For Local trips, both pickup and drop must be within 15 KM of Itarsi.",
+          });
+        }
+      }
+
+      if (["One Way", "Round Trip"].includes(tripType) && dropDistanceFromItarsi < 15) {
+        return res.status(400).json({
+          success: false,
+          message: "Drop location must be at least 15 KM from Itarsi for this trip type.",
+        });
+      }
+    } catch (distanceError) {
+      console.warn("⚠️ Distance re-check skipped. Using frontend-calculated trip details.", distanceError.message);
+
+      if (tripType === "Local" && requestedDistance > 15) {
+        return res.status(400).json({
+          success: false,
+          message: "For Local trips, the trip distance must be within 15 KM of Itarsi.",
+        });
+      }
+
+      if (["One Way", "Round Trip"].includes(tripType) && requestedDistance > 0 && requestedDistance < 15) {
+        return res.status(400).json({
+          success: false,
+          message: "Trip distance must be at least 15 KM for this trip type.",
+        });
+      }
     }
 
     const newBooking = new Booking({
@@ -126,20 +133,6 @@ if (!dropLocation) missingFields.push("dropLocation");
     const savedBooking = await newBooking.save();
     console.log("✅ Booking saved to MongoDB:", savedBooking);
 
-// SMS logic
-const nameText = sanitizeSMS(safe(name));
-const fareText = sanitizeSMS(safe(totalFare));
-const pickupText = sanitizeSMS(`${safe(pickupDate)} ${safe(pickupTime)}`);
-const mobileText = sanitizeSMS(safe(mobile));
-
-const customerMessage = `Booking confirmed with ItarsiTaxi on pickup date ${pickupText}. Fare: Rs${fareText}. Thank you!`;
-const adminMessage = `Booking received: ${nameText} (${mobileText}),pickup date  ${pickupText}`;
-
-const adminPhone = process.env.ADMIN_PHONE || "91XXXXXXXXXX";
-
-await sendSMS(mobileText, customerMessage);
-await sendSMS(adminPhone, adminMessage);
-
     res.status(201).json({
       success: true,
       message: "Booking saved successfully",
@@ -152,4 +145,3 @@ await sendSMS(adminPhone, adminMessage);
 });
 
 module.exports = router;
-

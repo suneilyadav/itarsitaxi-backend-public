@@ -5,13 +5,15 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "netlify:dev": "netlify dev"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@capacitor/geolocation": "^7.1.4",
     "@googlemaps/google-maps-services-js": "^3.4.1",
     "axios": "^1.10.0",
     "body-parser": "^1.20.2",
@@ -26,9 +28,11 @@
     "multer-storage-cloudinary": "^4.0.0",
     "pg-sdk-node": "https://phonepe.mycloudrepo.io/public/repositories/phonepe-pg-sdk-node/releases/v2/phonepe-pg-sdk-node.tgz",
     "razorpay": "^2.9.6",
+    "serverless-http": "^3.2.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "netlify-cli": "^17.34.1",
     "nodemon": "^3.0.2"
   }
 }
