@@ -43,6 +43,21 @@ router.get('/debug-env', (req, res) => {
   });
 });
 
+router.post('/debug-login', (req, res) => {
+  const { username = '', password = '' } = req.body || {};
+  const envUsername = process.env.ADMIN_USERNAME || '';
+  const envPassword = process.env.ADMIN_PASSWORD || '';
+
+  res.json({
+    usernameMatch: username === envUsername,
+    passwordMatch: password === envPassword,
+    providedUsernameLength: username.length,
+    providedPasswordLength: password.length,
+    envUsernameLength: envUsername.length,
+    envPasswordLength: envPassword.length,
+  });
+});
+
 router.get('/bookings', verifyToken, async (req, res) => {
   try {
     const bookings = await Booking.find().sort({ createdAt: -1 });
