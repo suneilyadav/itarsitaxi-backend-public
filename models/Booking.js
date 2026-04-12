@@ -41,6 +41,7 @@ const bookingSchema = new mongoose.Schema({
   paymentNotes: { type: String, default: '' },
   verifiedAt: { type: Date, default: null },
   verifiedBy: { type: String, default: '' },
+  whatsappOptIn: { type: Boolean, default: true },
 
   status: {
     type: String,

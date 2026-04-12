@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Booking = require('../models/Booking');
+const { sendBookingWhatsAppAlerts } = require('../utils/sendWhatsApp');
 require('dotenv').config();
 
 router.post('/upi/initiate', async (req, res) => {
@@ -21,6 +22,11 @@ router.post('/upi/initiate', async (req, res) => {
     });
 
     const savedBooking = await newBooking.save();
+
+    sendBookingWhatsAppAlerts({
+      booking: savedBooking.toObject(),
+      eventType: 'upi_booking_started',
+    });
 
     return res.status(201).json({
       success: true,
@@ -51,6 +57,11 @@ router.post('/upi/submit-proof', async (req, res) => {
     booking.paymentStatus = 'pending_verification';
 
     await booking.save();
+
+    sendBookingWhatsAppAlerts({
+      booking: booking.toObject(),
+      eventType: 'upi_proof_submitted',
+    });
 
     return res.json({ success: true, message: 'Payment proof submitted.' });
   } catch (err) {

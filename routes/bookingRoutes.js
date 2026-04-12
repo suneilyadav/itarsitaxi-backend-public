@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const getDistance = require("../utils/getDistance");
 const Booking = require("../models/Booking");
+const { sendBookingWhatsAppAlerts } = require("../utils/sendWhatsApp");
 
 const ITARSI_LOCATION = "Itarsi, Madhya Pradesh";
 
@@ -40,6 +41,7 @@ router.post("/", async (req, res) => {
       pickupLocation,
       dropLocation,
       duration = "",
+      whatsappOptIn = true,
     } = req.body;
 
     const requestedDistance = Number(distance) || 0;
@@ -127,11 +129,17 @@ if (!dropLocation) missingFields.push("dropLocation");
       pickupLocation,
       dropLocation,
       duration,
+      whatsappOptIn,
       paymentStatus: "Pending",
     });
 
     const savedBooking = await newBooking.save();
     console.log("✅ Booking saved to MongoDB:", savedBooking);
+
+    sendBookingWhatsAppAlerts({
+      booking: savedBooking.toObject(),
+      eventType: "cash_booking_created",
+    });
 
     res.status(201).json({
       success: true,
