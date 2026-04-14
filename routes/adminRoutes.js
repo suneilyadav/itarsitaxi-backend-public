@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const Booking = require('../models/Booking');
+const { sendBookingWhatsAppAlerts } = require('../utils/sendWhatsApp');
 
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -115,6 +116,32 @@ router.put('/bookings/:id/payment', verifyToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Failed to update payment status' });
+  }
+});
+
+router.put('/bookings/:id/confirm', verifyToken, async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'confirmed',
+      },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    sendBookingWhatsAppAlerts({
+      booking: booking.toObject(),
+      eventType: 'booking_confirmed',
+    });
+
+    res.json({ success: true, booking });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Failed to confirm booking' });
   }
 });
 

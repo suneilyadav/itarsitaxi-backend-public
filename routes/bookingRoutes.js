@@ -130,7 +130,8 @@ if (!dropLocation) missingFields.push("dropLocation");
       dropLocation,
       duration,
       whatsappOptIn,
-      paymentStatus: "Pending",
+      paymentStatus: "pending_cash",
+      status: "pending",
     });
 
     const savedBooking = await newBooking.save();

@@ -155,6 +155,27 @@ Advance amount: Rs ${amount}`,
     };
   }
 
+  if (eventType === 'booking_confirmed') {
+    return {
+      customer: {
+        text: `Itarsi Taxi booking confirmed
+Booking ID: ${bookingId}
+Name: ${customerName}
+Route: ${pickup} -> ${drop}
+Trip time: ${tripDate || 'TBD'}
+Status: Your cab has been confirmed by the admin team.`,
+      },
+      admin: {
+        text: `Booking confirmed
+Booking ID: ${bookingId}
+Name: ${customerName}
+Phone: ${booking?.mobile || 'N/A'}
+Payment mode: ${paymentMode}
+Status: Marked confirmed from admin dashboard.`,
+      },
+    };
+  }
+
   return {};
 };
 
